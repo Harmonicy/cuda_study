@@ -1,0 +1,20 @@
+# Ignore compiled object files
+*.o
+
+# Ignore executables
+*.exe
+*.out
+*.exp
+*.lib
+
+# Ignore generated files
+*.class
+*.jar
+
+# Ignore IDE-specific files
+.idea/
+.vscode/
+
+# Ignore system files
+.DS_Store
+Thumbs.db
