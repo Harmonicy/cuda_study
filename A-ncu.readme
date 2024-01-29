@@ -1,0 +1,1 @@
+sudo /usr/local/cuda-12.3/bin/ncu -f --set=full --target-processes all --kernel-name kernel_MRCI_Matrix_Generic -o cudaprofile  /localdata/jrf/ecMRCI-shaula/MRCI

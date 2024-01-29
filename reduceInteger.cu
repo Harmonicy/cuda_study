@@ -90,7 +90,17 @@ __global__ void reduceInterleaved(int *g_idata, int *g_odata, unsigned int n)
     if(idx >=n) return;
 
     //in-place reduction in global memory
-    for ()
+    for (int stride = blockDim.x/2; stride > 0; stride >>= 1){
+        if(tid < stride){
+            idata[tid] += idata[tid + stride];
+        }
+        //synchronize within threadblock
+        __syncthreads();
+    }
+
+    //write result for this block to global mem
+    if(tid == 0)
+        g_odata[blockIdx.x] = idata[0];
 }
 
 int main(int argc, char *argv[]) {
@@ -191,6 +201,20 @@ int main(int argc, char *argv[]) {
     for(int i = 0; i < grid.x; ++i) 
         gpu_sum += h_odata[i];
     printf("GPU reduceNeighbored2 elapsed %d ms gpu_sum: %d <<<grid %d block %d>>> \n", iElaps, gpu_sum, grid.x, block.x);
+    
+
+    //kernel 3: reduceInterleaved
+    cudaMemcpy(d_idata, h_idata, bytes, cudaMemcpyHostToDevice);
+    cudaDeviceSynchronize();
+    iStart = cpuSecond();
+    reduceInterleaved<<<grid, block>>>(d_idata, d_odata, size);
+    cudaDeviceSynchronize();
+    iElaps = cpuSecond() - iStart;
+    cudaMemcpy(h_odata, d_odata, grid.x*sizeof(int), cudaMemcpyDeviceToHost);
+    gpu_sum = 0;
+    for(int i = 0; i < grid.x; ++i) 
+        gpu_sum += h_odata[i];
+    printf("GPU reduceInterleaved elapsed %d ms gpu_sum: %d <<<grid %d block %d>>> \n", iElaps, gpu_sum, grid.x, block.x);
     cudaDeviceSynchronize();
 
     // gpu_sum = 0;
