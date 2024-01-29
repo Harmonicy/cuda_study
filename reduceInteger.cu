@@ -103,6 +103,35 @@ __global__ void reduceInterleaved(int *g_idata, int *g_odata, unsigned int n)
         g_odata[blockIdx.x] = idata[0];
 }
 
+
+__global__ void reduceUnrolling2(int *g_idata, int *g_odata, unsigned int n){
+    //set thread ID
+    unsigned int tid = threadIdx.x;
+    unsigned int idx = blockIdx.x*blockDim.x*2 + threadIdx.x;
+
+    //convert global data pointer to the local pointer of this block
+    int *idata = g_idata + blockIdx.x*blockDim.x*2;
+
+    //unrolling 2
+    if(idx + blockDim.x < n)
+        g_idata[idx] += g_idata[idx + blockDim.x];
+    __syncthreads();
+
+    //in-place reduction in global memory
+    for (int stride = blockDim.x/2; stride > 0; stride >>= 1){
+        if(tid < stride){
+            idata[tid] += idata[tid + stride];
+        }
+        //synchronize within threadblock
+        __syncthreads();
+    }
+
+    //write result for this block to global mem
+    if(tid == 0)
+        g_odata[blockIdx.x] = idata[0];
+}
+
+
 int main(int argc, char *argv[]) {
     //set up device
     int dev = 0;
@@ -216,6 +245,21 @@ int main(int argc, char *argv[]) {
         gpu_sum += h_odata[i];
     printf("GPU reduceInterleaved elapsed %d ms gpu_sum: %d <<<grid %d block %d>>> \n", iElaps, gpu_sum, grid.x, block.x);
     cudaDeviceSynchronize();
+
+    //kernel 4: reduceUnrolling2
+    cudaMemcpy(d_idata, h_idata, bytes, cudaMemcpyHostToDevice);
+    cudaDeviceSynchronize();
+    iStart = cpuSecond();
+    reduceUnrolling2<<<grid.x/2, block>>>(d_idata, d_odata, size);
+    cudaDeviceSynchronize();
+    iElaps = cpuSecond() - iStart;
+    cudaMemcpy(h_odata, d_odata, grid.x/2*sizeof(int), cudaMemcpyDeviceToHost);
+    gpu_sum = 0;
+    for(int i = 0; i < grid.x/2; ++i) 
+        gpu_sum += h_odata[i];
+    printf("GPU reduceUnrolling2 elapsed %d ms gpu_sum: %d <<<grid %d block %d>>> \n", iElaps, gpu_sum, grid.x/2, block.x);
+    cudaDeviceSynchronize();
+    
 
     // gpu_sum = 0;
     // for(int i = 0; i < grid.x/8; ++i) 
